@@ -12,6 +12,10 @@ from app.agents.state import PaperState
 from app.agents.utils import parse_json
 import json
 import re
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -164,9 +168,13 @@ async def paper_writer_node(state: PaperState) -> PaperState:
         sections = {}
         section_order = ["abstract", "introduction", "related_work", "method", "experiments", "discussion", "conclusion"]
         
-        for section_name in section_order:
+        for i, section_name in enumerate(section_order):
             section_outline = paper_outline.get(section_name, {})
             
+            # Use small delay between sections to respect TPM limits
+            if i > 0:
+                await asyncio.sleep(3)
+                
             # Build context from previously written sections
             context = ""
             for prev_section in section_order:
@@ -175,15 +183,24 @@ async def paper_writer_node(state: PaperState) -> PaperState:
                 if prev_section in sections:
                     context += f"\n## {prev_section.title()}\n{sections[prev_section][:500]}...\n"
             
-            section_response = await section_chain.ainvoke({
-                "section_name": section_name.replace("_", " ").title(),
-                "title": title,
-                "section_outline": json.dumps(section_outline, indent=2),
-                "context": context if context else "This is the first section.",
-                "experiment_data": exp_data_text if section_name in ["experiments", "abstract", "conclusion"] else "Not applicable for this section.",
-            })
-            
-            sections[section_name] = section_response.content
+            logger.info(f"[PAPER_WRITER] Writing section: {section_name}")
+            try:
+                # Use faster model for some sections to balance load
+                current_llm_chain = section_chain
+                if section_name in ["abstract", "conclusion"]:
+                    current_llm_chain = outline_chain # Use outline_chain (llm_flash) for simple sections
+                
+                section_response = await current_llm_chain.ainvoke({
+                    "section_name": section_name.replace("_", " ").title(),
+                    "title": title,
+                    "section_outline": json.dumps(section_outline, indent=2),
+                    "context": context if context else "This is the first section.",
+                    "experiment_data": exp_data_text if section_name in ["experiments", "abstract", "conclusion"] else "Not applicable for this section.",
+                })
+                sections[section_name] = section_response.content
+            except Exception as e:
+                logger.error(f"[PAPER_WRITER] Failed to write section {section_name}: {e}")
+                sections[section_name] = f"> Error generating section {section_name}. Please refine and regenerate.\n\nDetails: {str(e)}"
         
         # Step 3: Assemble the complete paper
         paper_markdown = f"""# {title}

@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 MODELS = {
     "kimi": "moonshotai/kimi-k2-instruct-0905",  # 10k TPM
     "gpt_oss": "openai/gpt-oss-120b",           # 8k TPM
-    "qwen": "qwen/qwen3-32b"                    # 6k TPM
+    "qwen": "qwen/qwen3-32b",                   # 6k TPM
+    "llama": "llama-3.3-70b-versatile"         # Standard Groq
 }
 
 def get_llm(
@@ -22,15 +23,6 @@ def get_llm(
 ) -> BaseChatModel:
     """
     Get an LLM instance, prioritizing Groq with Gemini as fallback.
-    
-    Args:
-        model_name: Key (kimi, gpt_oss, qwen) or full name of the Groq model.
-                   Defaults to k2-instruct if None.
-        temperature: Model temperature
-        fallback_model_name: Fallback Gemini model name
-        
-    Returns:
-        A Chat model instance (either Groq wrapped with fallback, or just Gemini)
     """
     settings = get_settings()
     
@@ -40,11 +32,13 @@ def get_llm(
         effective_model = MODELS[effective_model]
         
     # Configure Gemini (Backup/Primary if Groq missing)
+    # Using gemini-1.5-flash as the primary fallback
     gemini_llm = ChatGoogleGenerativeAI(
         model=fallback_model_name,
         google_api_key=settings.google_api_key or google_api_key,
         temperature=temperature,
-        convert_system_message_to_human=True
+        max_retries=3,
+        timeout=60.0
     )
     
     # Check for Groq
@@ -55,7 +49,8 @@ def get_llm(
                 model=effective_model,
                 api_key=settings.groq_api_key,
                 temperature=temperature,
-                max_retries=2
+                max_retries=1,  # Fast fallback to Gemini
+                request_timeout=60.0
             )
             
             # Create fallback chain
