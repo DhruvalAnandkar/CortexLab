@@ -7,6 +7,11 @@ Load environment variables and provide typed configuration settings.
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 from pydantic import Field
+import secrets
+
+
+# Auto-generate a session secret for this run (fine for dev, single-server prod)
+_DEFAULT_SECRET = secrets.token_hex(32)
 
 
 class Settings(BaseSettings):
@@ -30,10 +35,10 @@ class Settings(BaseSettings):
         description="Google API Key for Gemini"
     )
     
-    # Session
+    # Session - auto-generated if not provided
     session_secret_key: str = Field(
-        default="dev-secret-key-change-in-production",
-        description="Secret key for signing session tokens"
+        default=_DEFAULT_SECRET,
+        description="Secret key for signing session tokens (auto-generated if not set)"
     )
     
     # External APIs
