@@ -1,0 +1,61 @@
+"""
+Literature Scout Agent Node
+
+Searches academic databases for relevant papers.
+"""
+
+from app.agents.state import DiscoveryState
+from app.agents.tools.semantic_scholar import search_semantic_scholar
+
+
+async def literature_scout_node(state: DiscoveryState) -> DiscoveryState:
+    """
+    Search for relevant papers using the search queries.
+    
+    Input: search_queries from scope clarifier
+    Output: papers list with metadata
+    """
+    search_queries = state.get("search_queries", [])
+    
+    if not search_queries:
+        return {
+            **state,
+            "error": "No search queries available",
+            "current_step": "error",
+        }
+    
+    all_papers = []
+    seen_ids = set()
+    
+    try:
+        # Search with each query
+        for query in search_queries[:5]:  # Limit to first 5 queries
+            papers = await search_semantic_scholar(query, limit=20)
+            
+            for paper in papers:
+                if paper["id"] not in seen_ids:
+                    seen_ids.add(paper["id"])
+                    all_papers.append(paper)
+        
+        # Sort by citation count (descending)
+        all_papers.sort(key=lambda x: x.get("citation_count", 0) or 0, reverse=True)
+        
+        # Limit total papers
+        all_papers = all_papers[:50]
+        
+        return {
+            **state,
+            "papers": all_papers,
+            "current_step": "papers_retrieved",
+            "messages": state.get("messages", []) + [{
+                "type": "agent_note",
+                "agent": "literature_scout",
+                "content": f"Found {len(all_papers)} relevant papers"
+            }]
+        }
+    except Exception as e:
+        return {
+            **state,
+            "error": f"Literature search failed: {str(e)}",
+            "current_step": "error",
+        }
