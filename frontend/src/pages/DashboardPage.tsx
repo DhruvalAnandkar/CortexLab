@@ -243,8 +243,21 @@ export function DashboardPage() {
 
 function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: string) => void }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useBodyScrollLock(showDeleteConfirm);
+
+    const handleConfirmDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isDeleting) return;
+        setIsDeleting(true);
+        try {
+            await onDelete(project.id);
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
+        }
+    };
 
     const statusStyles: Record<string, string> = {
         discovery: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -316,11 +329,11 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: s
                 <div
                     className="fixed inset-0 flex items-center justify-center p-4"
                     style={{ zIndex: 9999 }}
-                    onKeyDown={(e) => e.key === 'Escape' && setShowDeleteConfirm(false)}
+                    onKeyDown={(e) => e.key === 'Escape' && !isDeleting && setShowDeleteConfirm(false)}
                 >
                     <div
                         className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
-                        onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+                        onClick={(e) => { e.stopPropagation(); if (!isDeleting) setShowDeleteConfirm(false); }}
                         aria-hidden="true"
                     />
                     <div
@@ -342,16 +355,18 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: s
                         <div className="flex gap-3">
                             <button
                                 autoFocus
+                                disabled={isDeleting}
                                 onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
-                                className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                                className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={(e) => { e.stopPropagation(); onDelete(project.id); setShowDeleteConfirm(false); }}
-                                className="flex-1 py-2.5 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-lg shadow-red-500/20"
+                                onClick={handleConfirmDelete}
+                                disabled={isDeleting}
+                                className="flex-1 py-2.5 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-lg shadow-red-500/20 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
-                                Delete
+                                {isDeleting ? <><Loader2 className="w-4 h-4 animate-spin" />Deleting...</> : 'Delete'}
                             </button>
                         </div>
                     </div>

@@ -75,13 +75,21 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
-        """Enforce that production deployments use an explicit SESSION_SECRET_KEY."""
-        if self.is_production and self.session_secret_key == _GENERATED_DEV_SECRET:
-            raise ValueError(
-                "SESSION_SECRET_KEY must be set explicitly in .env when IS_PRODUCTION=true. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-            )
-        if not self.is_production and self.session_secret_key == _GENERATED_DEV_SECRET:
+        """Enforce that production deployments use a strong, explicit SESSION_SECRET_KEY."""
+        _MIN_SECRET_LEN = 32
+
+        if self.is_production:
+            if self.session_secret_key == _GENERATED_DEV_SECRET:
+                raise ValueError(
+                    "SESSION_SECRET_KEY must be set explicitly in .env when IS_PRODUCTION=true. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+            if len(self.session_secret_key) < _MIN_SECRET_LEN:
+                raise ValueError(
+                    f"SESSION_SECRET_KEY must be at least {_MIN_SECRET_LEN} characters in production. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+        elif self.session_secret_key == _GENERATED_DEV_SECRET:
             warnings.warn(
                 "SESSION_SECRET_KEY is using an auto-generated value — sessions will be "
                 "invalidated on every server restart. Set SESSION_SECRET_KEY in .env to persist sessions.",
