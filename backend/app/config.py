@@ -67,6 +67,13 @@ class Settings(BaseSettings):
         description="Frontend URL for CORS",
     )
 
+    # Production mode — enables secure cookie, disables /docs
+    is_production: bool = Field(
+        default=False,
+        description="Set to true in production to enable security hardening",
+        validation_alias=AliasChoices("IS_PRODUCTION", "is_production"),
+    )
+
 
 @lru_cache()
 def get_settings() -> Settings:

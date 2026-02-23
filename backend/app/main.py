@@ -81,6 +81,10 @@ def create_app() -> FastAPI:
         description="AI-powered research assistant for discovering research gaps and generating papers",
         version="0.1.0",
         lifespan=lifespan,
+        # Hide interactive docs in production to reduce attack surface
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
     
     # Setup logging

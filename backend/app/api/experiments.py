@@ -6,6 +6,7 @@ File upload and management for experiment data.
 
 import os
 import uuid
+import re
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -30,6 +31,23 @@ def get_file_extension(filename: str) -> str:
     return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
 
+def sanitize_filename(name: str) -> str:
+    """Strip path separators and dangerous characters from a filename."""
+    # Take only the basename (removes any directory traversal)
+    name = os.path.basename(name)
+    # Remove any remaining characters that aren't alphanumeric, dot, dash, underscore, or space
+    name = re.sub(r"[^\w .\-]", "", name)
+    return name[:255] or "file"  # max 255 chars, never empty
+
+
+def _assert_safe_id(value: str, label: str = "ID") -> None:
+    """Raise 400 if value is not a plain UUID (blocks path traversal via project_id)."""
+    try:
+        uuid.UUID(value)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+
+
 @router.post("/projects/{project_id}/experiments/upload", response_model=ExperimentUploadResponse)
 async def upload_experiment(
     project_id: str,
@@ -40,9 +58,12 @@ async def upload_experiment(
 ):
     """
     Upload an experiment data file.
-    
+
     Supports CSV, JSON, images (PNG, JPG), PDF, and Excel files.
     """
+    # Guard: project_id must be a valid UUID (prevents directory traversal)
+    _assert_safe_id(project_id, "project ID")
+
     # Verify project ownership
     project_result = await db.execute(
         select(Project)
@@ -81,11 +102,12 @@ async def upload_experiment(
         f.write(content)
     
     # Create database record
+    safe_name = sanitize_filename(file.filename or "upload")
     experiment = ExperimentUpload(
         project_id=project_id,
         file_path=file_path,
         file_type=file_ext,
-        original_name=file.filename or "unknown",
+        original_name=safe_name,
         description=description,
         meta={"size": len(content)},
     )
