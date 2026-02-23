@@ -45,7 +45,7 @@ def _assert_safe_id(value: str, label: str = "ID") -> None:
     try:
         uuid.UUID(value)
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+        raise HTTPException(status_code=400, detail=f"Invalid {label}") from None
 
 
 @router.post("/projects/{project_id}/experiments/upload", response_model=ExperimentUploadResponse)

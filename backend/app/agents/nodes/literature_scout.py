@@ -24,19 +24,21 @@ async def literature_scout_node(state: DiscoveryState) -> DiscoveryState:
 
     # ── Fallback: generate basic queries from user_query directly ─────────────
     if not search_queries and user_query:
-        logger.warning(
-            "[LITERATURE_SCOUT] No search queries from scope_clarifier — "
-            "generating fallback queries from user_query."
-        )
-        # Simple keyword-based fallback queries
         base = user_query.strip()
-        search_queries = [
-            base,
-            f"{base} survey",
-            f"{base} review",
-            f"{base} state of the art",
-            f"{base} recent advances",
-        ]
+        if not base:
+            logger.warning("[LITERATURE_SCOUT] user_query is whitespace-only — skipping fallback.")
+        else:
+            logger.warning(
+                "[LITERATURE_SCOUT] No search queries from scope_clarifier — "
+                "generating fallback queries from user_query."
+            )
+            search_queries = [
+                base,
+                f"{base} survey",
+                f"{base} review",
+                f"{base} state of the art",
+                f"{base} recent advances",
+            ]
 
     if not search_queries:
         logger.error("[LITERATURE_SCOUT] No search queries available and no user_query to fall back to.")

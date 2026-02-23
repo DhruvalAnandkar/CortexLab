@@ -5,8 +5,7 @@ Load environment variables and provide typed configuration settings.
 """
 
 from functools import lru_cache
-from pydantic import Field
-from pydantic.fields import AliasChoices
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import secrets
 

@@ -63,7 +63,7 @@ export function DashboardPage() {
     });
 
     const handleCreate = () => {
-        if (newTitle.trim()) {
+        if (newTitle.trim() && !createMutation.isPending) {
             createMutation.mutate({
                 title: newTitle.trim(),
                 description: newDesc.trim() || undefined,
@@ -75,10 +75,11 @@ export function DashboardPage() {
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setIsCreating(false);
+            if (e.key === 'Enter') handleCreate();
         };
         if (isCreating) window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [isCreating]);
+    }, [isCreating, newTitle, newDesc, createMutation.isPending]);
 
     /* ──────────────────────────────────────────────────────────────────────── */
 

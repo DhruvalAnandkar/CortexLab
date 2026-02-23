@@ -30,7 +30,11 @@ async def get_current_user(
     """
     token = session_token
 
-    # Fall back to Authorization header if no cookie
+    # Verify cookie first; if expired/invalid fall through to Authorization header
+    if token and not verify_session_token(token):
+        token = None  # cookie exists but is stale — try header next
+
+    # Fall back to Authorization header if no valid cookie
     if not token and authorization:
         scheme, _, value = authorization.partition(" ")
         if scheme.lower() == "bearer" and value:
