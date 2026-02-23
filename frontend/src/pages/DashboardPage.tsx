@@ -41,7 +41,7 @@ export function DashboardPage() {
     useBodyScrollLock(isCreating);
 
     /* ── queries / mutations ── */
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['projects'],
         queryFn: () => projectsApi.list().then((r) => r.data),
         enabled: isAuthenticated,
@@ -74,12 +74,13 @@ export function DashboardPage() {
     /* ── key handler ── */
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
+            // Escape only — Enter is handled by the title input's onKeyDown to avoid
+            // double-firing and to prevent swallowing newlines in the description textarea
             if (e.key === 'Escape') setIsCreating(false);
-            if (e.key === 'Enter') handleCreate();
         };
         if (isCreating) window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [isCreating, newTitle, newDesc, createMutation.isPending]);
+    }, [isCreating]);
 
     /* ──────────────────────────────────────────────────────────────────────── */
 
@@ -111,6 +112,13 @@ export function DashboardPage() {
                     {[1, 2, 3].map((i) => (
                         <div key={i} className="glass-card h-52 animate-pulse bg-white/40" />
                     ))}
+                </div>
+            ) : isError ? (
+                <div className="text-center py-20">
+                    <p className="text-slate-500 mb-4 font-medium">Failed to load projects.</p>
+                    <button onClick={() => refetch()} className="btn-secondary">
+                        Try Again
+                    </button>
                 </div>
             ) : data?.projects.length === 0 ? (
                 <EmptyState onCreateClick={() => setIsCreating(true)} />
@@ -308,6 +316,7 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: s
                 <div
                     className="fixed inset-0 flex items-center justify-center p-4"
                     style={{ zIndex: 9999 }}
+                    onKeyDown={(e) => e.key === 'Escape' && setShowDeleteConfirm(false)}
                 >
                     <div
                         className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
@@ -319,18 +328,20 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: s
                         onClick={(e) => e.stopPropagation()}
                         role="alertdialog"
                         aria-modal="true"
+                        aria-labelledby={`delete-dialog-title-${project.id}`}
                     >
                         {/* Icon */}
                         <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mb-4">
                             <Trash2 className="w-6 h-6 text-red-500" />
                         </div>
-                        <h3 className="text-lg font-black text-slate-900 mb-1">Delete project?</h3>
+                        <h3 id={`delete-dialog-title-${project.id}`} className="text-lg font-black text-slate-900 mb-1">Delete project?</h3>
                         <p className="text-sm text-slate-500 mb-6 leading-relaxed">
                             <span className="font-semibold text-slate-700">"{project.title}"</span> and all its artifacts
                             will be permanently deleted. This can't be undone.
                         </p>
                         <div className="flex gap-3">
                             <button
+                                autoFocus
                                 onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
                                 className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
                             >

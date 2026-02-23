@@ -5,12 +5,12 @@ Load environment variables and provide typed configuration settings.
 """
 
 from functools import lru_cache
-from pydantic import Field, AliasChoices
+from pydantic import Field, AliasChoices, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import secrets
+import warnings
 
-
-_DEFAULT_SECRET = secrets.token_hex(32)
+_GENERATED_DEV_SECRET = secrets.token_hex(32)
 
 
 class Settings(BaseSettings):
@@ -44,10 +44,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GROK_API", "GROQ_API", "GROQ_API_KEY", "groq_api_key"),
     )
 
-    # Session
+    # Session — must be set explicitly in .env (generated fallback is for local dev only)
     session_secret_key: str = Field(
-        default=_DEFAULT_SECRET,
-        description="Secret key for signing session tokens",
+        default=_GENERATED_DEV_SECRET,
+        description="Secret key for signing session tokens. MUST be set explicitly in production.",
     )
 
     # External APIs
@@ -72,6 +72,22 @@ class Settings(BaseSettings):
         description="Set to true in production to enable security hardening",
         validation_alias=AliasChoices("IS_PRODUCTION", "is_production"),
     )
+
+    @model_validator(mode="after")
+    def _check_production_secrets(self) -> "Settings":
+        """Enforce that production deployments use an explicit SESSION_SECRET_KEY."""
+        if self.is_production and self.session_secret_key == _GENERATED_DEV_SECRET:
+            raise ValueError(
+                "SESSION_SECRET_KEY must be set explicitly in .env when IS_PRODUCTION=true. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        if not self.is_production and self.session_secret_key == _GENERATED_DEV_SECRET:
+            warnings.warn(
+                "SESSION_SECRET_KEY is using an auto-generated value — sessions will be "
+                "invalidated on every server restart. Set SESSION_SECRET_KEY in .env to persist sessions.",
+                stacklevel=2,
+            )
+        return self
 
 
 @lru_cache()
