@@ -128,7 +128,7 @@ export function DashboardPage() {
                         <ProjectCard
                             key={project.id}
                             project={project}
-                            onDelete={(id) => deleteMutation.mutate(id)}
+                            onDelete={async (id) => { await deleteMutation.mutateAsync(id); }}
                         />
                     ))}
                 </div>
@@ -241,7 +241,7 @@ export function DashboardPage() {
 /*  Project Card                                                               */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: string) => void }) {
+function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: string) => Promise<void> }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
