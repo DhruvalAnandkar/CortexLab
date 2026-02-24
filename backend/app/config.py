@@ -5,74 +5,97 @@ Load environment variables and provide typed configuration settings.
 """
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AliasChoices, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import secrets
+import warnings
 
-
-# Auto-generate a session secret for this run (fine for dev, single-server prod)
-_DEFAULT_SECRET = secrets.token_hex(32)
+_GENERATED_DEV_SECRET = secrets.token_hex(32)
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,   # allow using field name OR alias
+        case_sensitive=False,    # accept GROK_API or grok_api
+    )
+
     # Database
     database_url: str = Field(
         default="sqlite+aiosqlite:///./cortexlab.db",
-        description="Database connection URL"
-    )
-    
-    # Google OAuth
-    google_client_id: str = Field(
-        default="",
-        description="Google OAuth Client ID"
-    )
-    google_client_secret: str = Field(
-        default="",
-        description="Google OAuth Client Secret (optional, not used in current flow)"
-    )
-    
-    # Gemini AI
-    google_api_key: str = Field(
-        default="",
-        description="Google API Key for Gemini"
+        description="Database connection URL",
     )
 
-    # Groq AI
+    # Google OAuth
+    google_client_id: str = Field(default="", description="Google OAuth Client ID")
+    google_client_secret: str = Field(default="", description="Google OAuth Client Secret")
+
+    # Gemini AI
+    google_api_key: str = Field(default="", description="Google API Key for Gemini")
+
+    # Groq AI — accept GROK_API (user's name) OR GROQ_API_KEY (standard name)
     groq_api_key: str = Field(
         default="",
-        description="Groq API Key"
+        description="Groq API Key",
+        validation_alias=AliasChoices("GROK_API", "GROQ_API", "GROQ_API_KEY", "groq_api_key"),
     )
-    
-    # Session - auto-generated if not provided
+
+    # Session — must be set explicitly in .env (generated fallback is for local dev only)
     session_secret_key: str = Field(
-        default=_DEFAULT_SECRET,
-        description="Secret key for signing session tokens (auto-generated if not set)"
+        default=_GENERATED_DEV_SECRET,
+        description="Secret key for signing session tokens. MUST be set explicitly in production.",
     )
-    
+
     # External APIs
     serpapi_key: str = Field(
         default="",
-        description="SerpAPI key for Google Scholar searches"
+        description="SerpAPI key for Google Scholar searches",
+        validation_alias=AliasChoices("SERPAPI_KEY", "serpapi_key"),
     )
-    
+
     # File Storage
-    upload_dir: str = Field(
-        default="./uploads",
-        description="Directory for uploaded files"
-    )
-    
+    upload_dir: str = Field(default="./uploads", description="Directory for uploaded files")
+
     # CORS
     frontend_url: str = Field(
         default="http://localhost:5173",
-        description="Frontend URL for CORS"
+        description="Frontend URL for CORS",
     )
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Ignore any extra env vars not defined here
+
+    # Production mode — enables secure cookie, disables /docs
+    is_production: bool = Field(
+        default=False,
+        description="Set to true in production to enable security hardening",
+        validation_alias=AliasChoices("IS_PRODUCTION", "is_production"),
+    )
+
+    @model_validator(mode="after")
+    def _check_production_secrets(self) -> "Settings":
+        """Enforce that production deployments use a strong, explicit SESSION_SECRET_KEY."""
+        _MIN_SECRET_LEN = 32
+
+        if self.is_production:
+            if self.session_secret_key == _GENERATED_DEV_SECRET:
+                raise ValueError(
+                    "SESSION_SECRET_KEY must be set explicitly in .env when IS_PRODUCTION=true. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+            if len(self.session_secret_key) < _MIN_SECRET_LEN:
+                raise ValueError(
+                    f"SESSION_SECRET_KEY must be at least {_MIN_SECRET_LEN} characters in production. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+        elif self.session_secret_key == _GENERATED_DEV_SECRET:
+            warnings.warn(
+                "SESSION_SECRET_KEY is using an auto-generated value — sessions will be "
+                "invalidated on every server restart. Set SESSION_SECRET_KEY in .env to persist sessions.",
+                stacklevel=2,
+            )
+        return self
 
 
 @lru_cache()

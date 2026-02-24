@@ -52,8 +52,8 @@ async def google_auth(
             
             if token_response.status_code != 200:
                 raise HTTPException(
-                    status_code=401, 
-                    detail=f"Failed to exchange code: {token_response.text}"
+                    status_code=401,
+                    detail="Failed to authenticate with Google. Please try again."
                 )
             
             tokens = token_response.json()
@@ -114,12 +114,12 @@ async def google_auth(
     # Create session token
     session_token = create_session_token(user.id)
     
-    # Set httpOnly cookie
+    # Set httpOnly cookie — secure=True in production (HTTPS), False for local dev
     response.set_cookie(
         key="session_token",
         value=session_token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=settings.is_production,
         samesite="lax",
         max_age=86400 * 7  # 7 days
     )
